@@ -1,6 +1,6 @@
 {
 	"name": "log-stamp",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Add timestamped entries to a daily dev log, through an inbox that only one device imports.",
 	"main": "main.js",
 	"type": "module",

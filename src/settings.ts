@@ -1,4 +1,5 @@
 // data.json の型と既定値(§9.2・D-6)。読み込み時の補いと、受け箱が開発ログフォルダの中かの判定(INV-3)。
+// 2つのフォルダの既定は空(未設定)。入れた人が最初に設定する。未設定かの判定(isUnset)もここ。
 // 「この端末で取り込む」は data.json に入れない(端末ごとの localStorage。INV-9)。obsidian を import しない。
 
 export interface Settings {
@@ -13,10 +14,10 @@ export interface Settings {
 
 export const DEFAULTS: Settings = {
 	schemaVersion: 1,
-	logFolder: "開発ログ",
+	logFolder: "", // 未設定。vault ごとに違うので既定を持たない
 	titleFormat: "# {date} 開発ログ",
 	summaryHeading: "## この日の総括",
-	inboxFolder: "開発ログ受け箱",
+	inboxFolder: "", // 同上
 	bulletize: true,
 	skeletonTail: ["- **学び**: "],
 };
@@ -45,10 +46,16 @@ export function loadSettings(raw: unknown): { settings: Settings; broken: boolea
 
 const trimSlashes = (p: string): string => p.replace(/^\/+|\/+$/g, "").toLowerCase();
 
-/** child が parent と同じか、その配下か(パスは normalizePath 済みで渡す。"" と "/" は vault 直下) */
+/** フォルダが未設定か。空・空白だけ・"/"(normalizePath("") の戻り)は vault の直下ではなく未設定として扱う */
+export function isUnset(folder: string): boolean {
+	return trimSlashes(folder.trim()) === "";
+}
+
+/** child が parent と同じか、その配下か(パスは normalizePath 済みで渡す)。どちらかが未設定なら false(INV-3 は両方が設定されているときの決まり) */
 export function isSameOrInside(child: string, parent: string): boolean {
+	if (isUnset(child) || isUnset(parent)) return false;
 	const c = trimSlashes(child), p = trimSlashes(parent);
-	return p === "" || c === p || c.startsWith(p + "/");
+	return c === p || c.startsWith(p + "/");
 }
 
 /** <manifest の id>:import-here(§9.2) */

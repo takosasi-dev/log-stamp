@@ -6,7 +6,7 @@ import { entryLines, type Entry } from "./core/format";
 import { buildInboxText, byCreated, inboxPath, markImported, parseInbox, randomHex4, type InboxItem } from "./core/inbox";
 import { countEntry, h1Warning, insertEntry, newLogText } from "./core/insert";
 import { createFile, ensureFolder, exists, fileAt, folderAt, mdFilesIn, np, processFile, readFile } from "./io";
-import { isSameOrInside, type Settings } from "./settings";
+import { isSameOrInside, isUnset, type Settings } from "./settings";
 import { S } from "./strings";
 
 export type Outcome =
@@ -22,6 +22,7 @@ const reasonOf = (e: unknown): string => (e instanceof Error ? e.message : Strin
 export async function recordToInbox(
 	app: App, st: Settings, e: Entry, now: Date,
 ): Promise<{ ok: true; file: TFile } | { ok: false; message: string }> {
+	if (isUnset(st.inboxFolder)) return { ok: false, message: S.unsetInbox }; // 未設定なら vault の直下に作らない
 	if (isSameOrInside(np(st.inboxFolder), np(st.logFolder))) return { ok: false, message: S.errInboxInsideLog }; // INV-3
 	if (!(await ensureFolder(app, st.inboxFolder))) return { ok: false, message: S.makeInboxFolder(st.inboxFolder) };
 	const text = buildInboxText(e, isoWithOffset(now));
@@ -65,6 +66,7 @@ export class Importer {
 	async insertItem(item: Pick<InboxItem, "date" | "headingLine" | "body">): Promise<Outcome> {
 		if (!this.isOn()) return { kind: "error", reason: S.importOff };
 		const st = this.settings();
+		if (isUnset(st.logFolder)) return { kind: "error", reason: S.unsetLog }; // 未設定なら vault の直下に書かない
 		const path = this.logPath(item.date);
 		try {
 			let file = fileAt(this.app, path);
@@ -117,8 +119,9 @@ export class Importer {
 	 *  `取り込み:` のある物は読むだけで「既にあった」に数える(AC-13 の2回目が「既にあった 3」になるため) */
 	async importAll(): Promise<{ inserted: number; existed: number; invalid: number; notes: string[] }> {
 		const sum = { inserted: 0, existed: 0, invalid: 0, notes: [] as string[] };
-		if (!this.isOn()) return sum;
-		const folder = folderAt(this.app, this.settings().inboxFolder);
+		const st = this.settings();
+		if (!this.isOn() || isUnset(st.inboxFolder) || isUnset(st.logFolder)) return sum; // 未設定なら vault の直下を読まない
+		const folder = folderAt(this.app, st.inboxFolder);
 		if (!folder) return sum;
 		const todo: { file: TFile; created: string; path: string }[] = [];
 		for (const f of mdFilesIn(folder)) {

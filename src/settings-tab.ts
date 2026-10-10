@@ -3,7 +3,7 @@
 import { PluginSettingTab, type App, type SettingDefinitionItem } from "obsidian";
 import { np } from "./io";
 import type LogStampPlugin from "./main";
-import { isSameOrInside } from "./settings";
+import { isSameOrInside, isUnset } from "./settings";
 import { S } from "./strings";
 
 export class LogStampSettingTab extends PluginSettingTab {
@@ -16,9 +16,9 @@ export class LogStampSettingTab extends PluginSettingTab {
 		return [
 			{ type: "group", items: [
 				{ name: S.setImportHere, desc: S.setImportHereDesc, control: { type: "toggle", key: "importHere" } },
-				{ name: S.setLogFolder, control: { type: "text", key: "logFolder",
+				{ name: S.setLogFolder, desc: S.setLogFolderDesc, control: { type: "text", key: "logFolder",
 					validate: (v: string) => (isSameOrInside(np(st().inboxFolder), np(v)) ? S.errInboxInsideLog : undefined) } },
-				{ name: S.setInboxFolder, control: { type: "text", key: "inboxFolder",
+				{ name: S.setInboxFolder, desc: S.setInboxFolderDesc, control: { type: "text", key: "inboxFolder",
 					validate: (v: string) => (isSameOrInside(np(v), np(st().logFolder)) ? S.errInboxInsideLog : undefined) } },
 				{ name: S.setTitleFormat, desc: S.setTitleFormatDesc, control: { type: "text", key: "titleFormat" } },
 				{ name: S.setSummaryHeading, desc: S.setSummaryHeadingDesc, control: { type: "text", key: "summaryHeading" } },
@@ -50,8 +50,8 @@ export class LogStampSettingTab extends PluginSettingTab {
 				this.owner.setImportOn(value === true); // data.json には書かない
 				return;
 			case "skeletonTail": s.skeletonTail = str.split(/\r?\n/).filter((x) => x.trim() !== ""); break; // 行末の空白は残す
-			case "logFolder": s.logFolder = np(str); break;
-			case "inboxFolder": s.inboxFolder = np(str); break;
+			case "logFolder": s.logFolder = isUnset(str) ? "" : np(str); break; // 空は未設定のまま保存する(np("") は "/")
+			case "inboxFolder": s.inboxFolder = isUnset(str) ? "" : np(str); break;
 			case "titleFormat": s.titleFormat = str; break;
 			case "summaryHeading": s.summaryHeading = str; break;
 			case "bulletize": s.bulletize = value === true; break;

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { formatDate, formatHms, formatTime, isoWithOffset, isValidDate, isValidTime } from "../src/core/dates";
 import { buildEntry, type EntryInput, entryLines, formatBody, HEADING_RE, isEntryHeading, submitEntry, validateEntry } from "../src/core/format";
 import { S } from "../src/strings";
-import { DEFAULTS, importHereKey, isSameOrInside, loadSettings } from "../src/settings";
+import { DEFAULTS, importHereKey, isSameOrInside, isUnset, loadSettings } from "../src/settings";
 import { buildSkeleton } from "../src/core/skeleton";
 import { H } from "./helpers";
 
@@ -147,8 +147,8 @@ describe("settings", () => {
 			expect(Object.keys(DEFAULTS).sort()).toEqual(
 				["bulletize", "inboxFolder", "logFolder", "schemaVersion", "skeletonTail", "summaryHeading", "titleFormat"]);
 			expect(DEFAULTS).toEqual({
-				schemaVersion: 1, logFolder: "開発ログ", titleFormat: "# {date} 開発ログ", summaryHeading: "## この日の総括",
-				inboxFolder: "開発ログ受け箱", bulletize: true, skeletonTail: ["- **学び**: "],
+				schemaVersion: 1, logFolder: "", titleFormat: "# {date} 開発ログ", summaryHeading: "## この日の総括",
+				inboxFolder: "", bulletize: true, skeletonTail: ["- **学び**: "],
 			});
 		});
 		it("初回(null)は既定値で、壊れていない扱い", () => {
@@ -163,6 +163,12 @@ describe("settings", () => {
 			for (const raw of [{ schemaVersion: 2 }, "text", [1], { logFolder: "a", inboxFolder: "a/inbox" }]) {
 				expect(loadSettings(raw)).toEqual({ settings: DEFAULTS, broken: true });
 			}
+		});
+		it("フォルダが未設定のまま保存した data.json は壊れている扱いにしない。保存済みの値はそのまま使う", () => {
+			for (const raw of [{ schemaVersion: 1, logFolder: "", inboxFolder: "" }, { logFolder: "/", inboxFolder: "inbox" }, { logFolder: "log", inboxFolder: " " }]) {
+				expect(loadSettings(raw)).toEqual({ settings: { ...DEFAULTS, ...raw }, broken: false });
+			}
+			expect(loadSettings({ logFolder: "log", inboxFolder: "inbox" }).settings).toEqual({ ...DEFAULTS, logFolder: "log", inboxFolder: "inbox" });
 		});
 		it("既定値は呼ぶたびに別の物(書き換えが DEFAULTS に漏れない)", () => {
 			const a = loadSettings(null).settings;
@@ -181,7 +187,13 @@ describe("settings", () => {
 			expect(isSameOrInside("Devlog/inbox", "devlog")).toBe(true);
 			expect(isSameOrInside("開発ログ受け箱", "開発ログ")).toBe(false);
 			expect(isSameOrInside("メモ/受け箱", "開発ログ")).toBe(false);
-			expect(isSameOrInside("受け箱", "/")).toBe(true); // ログが vault 直下なら、どこも配下
+		});
+		it("空・空白だけ・\"/\" は未設定。どちらかが未設定なら「中にある」と見なさない", () => {
+			for (const f of ["", "  ", "/"]) expect(isUnset(f)).toBe(true);
+			for (const f of ["log", "a/b", "/log/"]) expect(isUnset(f)).toBe(false);
+			expect(isSameOrInside("受け箱", "/")).toBe(false);
+			expect(isSameOrInside("", "")).toBe(false);
+			expect(isSameOrInside("/", "開発ログ")).toBe(false);
 		});
 	});
 });

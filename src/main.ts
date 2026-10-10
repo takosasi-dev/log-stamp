@@ -8,7 +8,7 @@ import { buildSkeleton } from "./core/skeleton";
 import { Importer, notesOf, recordToInbox } from "./importer";
 import { createFile, fileAt, folderAt, np, readFile } from "./io";
 import { EntryModal, VerifyModal, type SubmitResult } from "./modal";
-import { DEFAULTS, importHereKey, loadSettings, type Settings } from "./settings";
+import { DEFAULTS, importHereKey, isUnset, loadSettings, type Settings } from "./settings";
 import { LogStampSettingTab } from "./settings-tab";
 import { S } from "./strings";
 import { collectVerify, type VerifyRow } from "./verify";
@@ -62,7 +62,15 @@ export default class LogStampPlugin extends Plugin {
 		}
 	}
 
+	/** フォルダが未設定なら、何を設定するかを知らせて true。コマンドの入口でだけ呼ぶ(起動時には出さない) */
+	private missing(key: "logFolder" | "inboxFolder"): boolean {
+		if (!isUnset(this.settings[key])) return false;
+		new Notice(key === "logFolder" ? S.unsetLog : S.unsetInbox);
+		return true;
+	}
+
 	private openEntryModal(): void {
+		if (this.missing("inboxFolder")) return; // 入力させる前に断る
 		new EntryModal(this.app, (input) => this.submit(input)).open();
 	}
 
@@ -91,6 +99,7 @@ export default class LogStampPlugin extends Plugin {
 
 	/** FR-15 */
 	private async openToday(): Promise<void> {
+		if (this.missing("logFolder")) return;
 		const date = formatDate(new Date());
 		const path = this.importer.logPath(date);
 		let file = fileAt(this.app, path);
@@ -114,6 +123,7 @@ export default class LogStampPlugin extends Plugin {
 			new Notice(S.importOff);
 			return;
 		}
+		if (this.missing("inboxFolder") || this.missing("logFolder")) return;
 		const r = await this.importer.run(() => this.importer.importAll());
 		if (r === null) {
 			new Notice(S.importBusy);
@@ -125,6 +135,7 @@ export default class LogStampPlugin extends Plugin {
 
 	/** FR-16。取り込み OFF の端末では一覧だけ(入れ直しは出さない) */
 	private openVerify(): void {
+		if (this.missing("inboxFolder") || this.missing("logFolder")) return;
 		const load = () => collectVerify(this.app, this.settings, (d) => this.importer.logPath(d));
 		const reinsert = this.isImportOn()
 			? async (rows: VerifyRow[]): Promise<void> => {
@@ -139,6 +150,7 @@ export default class LogStampPlugin extends Plugin {
 
 	/** FR-17: 開いているログ、違えば今日のログの見出しから骨組みを作ってクリップボードへ(書き込みなし) */
 	private async copySkeleton(): Promise<void> {
+		if (this.missing("logFolder")) return;
 		const active = this.app.workspace.getActiveFile();
 		const isLog = active instanceof TFile && LOG_NAME.test(active.name) && active.parent?.path === np(this.settings.logFolder);
 		const path = isLog ? active.path : this.importer.logPath(formatDate(new Date()));

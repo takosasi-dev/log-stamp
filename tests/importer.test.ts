@@ -21,7 +21,7 @@ class FakeVault {
 	fileAt(p: string): FakeFile | null { return this.files.has(p) ? { path: p } : null; }
 	folderAt(p: string): FakeFolder | null {
 		if (!this.folders.has(p)) return null;
-		return { path: p, files: [...this.files.keys()].filter((k) => k.split("/").slice(0, -1).join("/") === p).map((path) => ({ path })) };
+		return { path: p, files: [...this.files.keys()].filter((k) => (k.split("/").slice(0, -1).join("/") || "/") === p).map((path) => ({ path })) }; // 直下のファイルの親は "/"
 	}
 	create(p: string, data: string): Promise<FakeFile> {
 		if (this.files.has(p)) return Promise.reject(new Error("exists"));
@@ -58,7 +58,7 @@ vi.mock("../src/io", () => {
 function setup(on: boolean): { v: FakeVault; app: App; st: Settings; imp: Importer; flag: { on: boolean } } {
 	const v = new FakeVault();
 	const app = v as unknown as App;
-	const st: Settings = { ...DEFAULTS, skeletonTail: [...DEFAULTS.skeletonTail] };
+	const st: Settings = { ...DEFAULTS, logFolder: "開発ログ", inboxFolder: "開発ログ受け箱", skeletonTail: [...DEFAULTS.skeletonTail] };
 	const flag = { on };
 	return { v, app, st, imp: new Importer(app, () => st, () => flag.on), flag };
 }
@@ -191,6 +191,48 @@ describe("記録の失敗", () => {
 		st.inboxFolder = "開発ログ/inbox";
 		const r = await submitEntry(input("x"), true, (e) => recordToInbox(app, st, e, new Date()));
 		expect(r).toEqual({ ok: true, value: { ok: false, message: S.errInboxInsideLog } });
+	});
+});
+
+describe("フォルダが未設定", () => {
+	const ROOT_LOG = "# vault の直下にある、日付の名前のノート\n";
+	const rootInbox = buildInboxText(buildEntry(input("直下"), true), "2026-09-25T10:00:00+09:00");
+
+	it("受け箱が未設定なら記録を断り、ファイルもフォルダも作らない", async () => {
+		const { v, app, st } = setup(true);
+		st.inboxFolder = "";
+		const foldersBefore = [...v.folders];
+		const r = await submitEntry(input("x"), true, (e) => recordToInbox(app, st, e, new Date()));
+		expect(r).toEqual({ ok: true, value: { ok: false, message: S.unsetInbox } });
+		expect(v.writes).toEqual([]);
+		expect([...v.folders]).toEqual(foldersBefore);
+	});
+	it("ログのフォルダが未設定なら取り込みを断り、vault の直下に作らない・書かない(受け箱の印も足さない)", async () => {
+		const { v, app, st, imp } = setup(true);
+		v.folders.add("/");
+		v.files.set("2026-09-25.md", ROOT_LOG);
+		const f = await record(app, st, input("一"));
+		const g = await record(app, st, input("二", "10:00", "2026-09-27"), new Date(2026, 8, 27, 10, 0, 0));
+		const before = JSON.stringify([...v.files]);
+		v.writes.length = 0;
+		for (const logFolder of ["", " ", "/"]) {
+			st.logFolder = logFolder;
+			expect(await imp.importFile(f)).toEqual({ kind: "error", reason: S.unsetLog });
+			expect(await imp.importFile(g)).toEqual({ kind: "error", reason: S.unsetLog });
+			expect(await imp.importAll()).toEqual({ inserted: 0, existed: 0, invalid: 0, notes: [] });
+		}
+		expect(v.writes).toEqual([]);
+		expect(JSON.stringify([...v.files])).toBe(before);
+	});
+	it("受け箱が未設定なら、取り込みも照合も vault の直下のノートを読まない", async () => {
+		const { v, app, st, imp } = setup(true);
+		v.folders.add("/");
+		v.files.set("a.md", rootInbox);
+		v.files.set("b.md", "受け箱の形でないノート");
+		st.inboxFolder = "/";
+		expect(await imp.importAll()).toEqual({ inserted: 0, existed: 0, invalid: 0, notes: [] });
+		expect(await collectVerify(app, st, (d) => imp.logPath(d))).toEqual({ missing: [], multiple: [], invalid: [] });
+		expect(v.writes).toEqual([]);
 	});
 });
 

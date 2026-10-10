@@ -4,7 +4,7 @@ import type { App } from "obsidian";
 import { parseInbox, type InboxItem } from "./core/inbox";
 import { countEntry } from "./core/insert";
 import { fileAt, folderAt, mdFilesIn, readFile } from "./io";
-import type { Settings } from "./settings";
+import { isUnset, type Settings } from "./settings";
 
 export interface VerifyRow {
 	path: string;
@@ -20,6 +20,7 @@ export interface VerifyResult {
 
 export async function collectVerify(app: App, st: Settings, logPath: (date: string) => string): Promise<VerifyResult> {
 	const r: VerifyResult = { missing: [], multiple: [], invalid: [] };
+	if (isUnset(st.inboxFolder) || isUnset(st.logFolder)) return r; // 未設定なら vault の直下を読まない
 	const folder = folderAt(app, st.inboxFolder);
 	if (!folder) return r;
 	for (const f of mdFilesIn(folder).sort((a, b) => (a.path < b.path ? -1 : 1))) {
