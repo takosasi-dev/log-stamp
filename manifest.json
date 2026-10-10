@@ -1,0 +1,9 @@
+{
+	"id": "log-stamp",
+	"name": "Log Stamp",
+	"version": "0.1.0",
+	"minAppVersion": "1.14.4",
+	"description": "Add timestamped entries to a daily dev log, through an inbox that only one device imports.",
+	"author": "takosasi-dev",
+	"isDesktopOnly": false
+}

@@ -1,0 +1,22 @@
+/* Log Stamp: 入力モーダル(FR-1)と照合の一覧(FR-16) */
+.log-stamp-body {
+	width: 100%;
+	min-height: 8em;
+}
+
+.log-stamp-heading {
+	width: 100%;
+}
+
+.log-stamp-label {
+	margin: 0.5em 0 0.25em;
+}
+
+.log-stamp-error {
+	color: var(--text-error);
+	min-height: 1.5em;
+}
+
+.log-stamp-none {
+	color: var(--text-muted);
+}
